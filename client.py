@@ -3,47 +3,34 @@ from tkinter import messagebox
 import requests
 import bcrypt
 
-def authenticate_user(username):
-    with open("bdd.txt", "r", encoding='utf-8') as file:
-        for line in file:
-            user_info = line.strip().split(',')
-            if user_info[0] == username:
-                stored_salt = user_info[1]
-                stored_encrypt_password = user_info[2]
-                return True, stored_salt, stored_encrypt_password
-        return False, None, None
+salt = bcrypt.gensalt()
 
 def signup_user(username, password):
-    salt = bcrypt.gensalt()
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
-
-    # Send hashed password
-    response = requests.post("http://localhost:8000", data={'login': username, 'hashed_password': hashed_password})
-
-    # Store user and salt in file
-    with open("bdd.txt", "a", encoding='utf-8') as file:
-        file.write(username + "," + salt.decode('utf-8') + "," + response.text + "\n")
-    messagebox.showinfo("Succès", "Inscription réussie !")
+    response = requests.post("http://localhost:8000/signup", data={'username': username, 'hashed_password': hashed_password.decode('utf-8')})
+    if response.status_code == 200:
+        messagebox.showinfo("Success", "Signup successful")
+    else:
+        messagebox.showerror("Error", "Signup failed")
 
 def signin_user(username, password):
-    login, stored_salt, stored_encrypt_password = authenticate_user(username)
-    if login:
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), stored_salt.encode('utf-8'))
-        response = requests.post("http://localhost:8000", data={'login': username, 'hashed_password': hashed_password})
-        encrypt_res = response.text
-        if encrypt_res == stored_encrypt_password:
-            show_welcome_screen(username)
-        else:
-            messagebox.showwarning("Erreur", "Mot de passe incorrect.")
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+    response = requests.post("http://localhost:8000/signin", data={'username': username, 'hashed_password': hashed_password.decode('utf-8')})
+    if response.status_code == 200:
+        show_welcome_screen(username)
+    elif response.status_code == 401:
+        messagebox.showwarning("Error", "Invalid password")
+    elif response.status_code == 404:
+        messagebox.showwarning("Error", "User not found")
     else:
-        messagebox.showwarning("Erreur", "Utilisateur inconnu.")
+        messagebox.showerror("Error", "Signin failed")
 
 def show_welcome_screen(username):
     for widget in root.winfo_children():
         widget.destroy()
 
-    tk.Label(root, text=f"Bienvenue, {username}!").grid(row=0, padx=10, pady=10)
-    tk.Button(root, text="Se déconnecter", command=show_login_screen).grid(row=1, padx=10, pady=10)
+    tk.Label(root, text=f"Welcome, {username}!").grid(row=0, padx=10, pady=10)
+    tk.Button(root, text="Sign Out", command=show_login_screen).grid(row=1, padx=10, pady=10)
 
 def show_login_screen():
     for widget in root.winfo_children():
@@ -63,7 +50,7 @@ def show_login_screen():
 
 # Tkinter GUI
 root = tk.Tk()
-root.title("Authentification")
+root.title("Authentication")
 
 show_login_screen()
 
