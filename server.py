@@ -1,21 +1,13 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
-from tink import aead, KeysetHandle
 import tink
+from tink import aead
+aead.register()
 import os
 import base64
 
-def init_tink():
-    try:
-        aead.register()
-    except tink.TinkError as e:
-        print("Error initializing Tink: ", e)
-
-init_tink()  # Initialize Tink
-
-# Create an AES256 GCM key template and generate a keyset handle
-key_template = aead.aead_key_templates.AES256_GCM
-keyset_handle = KeysetHandle.generate_new(key_template)
+keyset_handle = tink.new_keyset_handle(aead.aead_key_templates.AES128_GCM)
+aead_primitive = keyset_handle.primitive(aead.Aead)
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -23,20 +15,25 @@ class RequestHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode('utf-8')
         data = parse_qs(body)
         hashed_password = data['hashed_password'][0]
+        print(f"Hashed password: {hashed_password}")
         hashed_password_bytes = hashed_password.encode('utf-8')
+        print(f"Hashed password bytes: {hashed_password_bytes}")
         encrypted_password = self.encrypt_aes(hashed_password_bytes)
         base64_encrypted_password = base64.b64encode(encrypted_password)
         print(f"Encrypted password: {base64_encrypted_password}")
+        decrypted_password = self.decrypt_aes(encrypted_password)
+        print(f"Decrypted password: {decrypted_password}")
         self.send_response(200)
         self.end_headers()
         self.wfile.write(base64_encrypted_password)
 
     def encrypt_aes(self, data):
-        # Get the primitive
-        aead_primitive = keyset_handle.primitive(aead.Aead)
-        # Encrypt data
         ciphertext = aead_primitive.encrypt(data, b'')  # Associated data is empty
         return ciphertext
+    
+    def decrypt_aes(self, data):
+        plaintext = aead_primitive.decrypt(data, b'')
+        return plaintext
 
     
 def run(server_class=HTTPServer, handler_class=RequestHandler, port=8000):
