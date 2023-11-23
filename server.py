@@ -1,8 +1,6 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
-from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
+from tink import aead
 import os
 import base64
 
@@ -31,12 +29,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(base64_encrypted_password)
 
     def encrypt_aes(self, data):
-        cipher = Cipher(algorithms.AES(KEY), modes.ECB(), backend=default_backend())
-        encryptor = cipher.encryptor()
-        padder = padding.PKCS7(128).padder()
-        padded_data = padder.update(data) + padder.finalize()
-
-        return encryptor.update(padded_data) + encryptor.finalize()
+        aead_primitive = aead.aead_from_url('tink://aead/aes-256-gcm')
+        ciphertext = aead_primitive.encrypt(data, KEY, b'')
+        return ciphertext
     
 def run(server_class=HTTPServer, handler_class=RequestHandler, port=8000):
     server_address = ('', port)
