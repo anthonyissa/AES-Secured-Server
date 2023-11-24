@@ -27,10 +27,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         data = parse_qs(body)
         username = data['username'][0]
         hashed_password = data['hashed_password'][0]
+
         salt = bcrypt.gensalt()
         hashed_salt_password = bcrypt.hashpw(hashed_password.encode('utf-8'), salt)
         crypted_password = encrypt_aes(hashed_salt_password)
         users.append((username, salt, crypted_password))
+
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b'Signup successful')
@@ -41,6 +43,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         data = parse_qs(body)
         username = data['username'][0]
         hashed_password = data['hashed_password'][0]
+
         user_exists, stored_salt, crypted_password = self.authenticate_user(username)
         if not user_exists:
             self.send_response(404)
@@ -49,6 +52,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         stored_hashed_password = decrypt_aes(crypted_password)
         rehashed_password = bcrypt.hashpw(hashed_password.encode('utf-8'), stored_salt)
+        
         if stored_hashed_password == rehashed_password:
             self.send_response(200)
             self.end_headers()
